@@ -112,3 +112,13 @@ class NpmDistributionSerializer(core_serializers.DistributionSerializer):
     class Meta:
         fields = core_serializers.DistributionSerializer.Meta.fields + ("remote",)
         model = models.NpmDistribution
+
+
+class LoginSerializer(serializers.Serializer):
+    """
+    Serializer for NPM Login.
+    """
+
+    name = serializers.CharField(max_length=100)
+    password = serializers.CharField(max_length=100)
+    email = serializers.EmailField()

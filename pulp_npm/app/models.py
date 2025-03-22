@@ -1,8 +1,10 @@
 import json
+import uuid
 from logging import getLogger
 
 from aiohttp.web_response import Response
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.db import models
 
 
@@ -159,3 +161,21 @@ class NpmDistribution(Distribution):
 
         serialized_data = json.dumps(data)
         return Response(body=serialized_data)
+
+
+class AuthToken(models.Model):
+    """
+    AuthToken for "npm" login.
+    """
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = uuid.uuid4().hex
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Token for {self.user.username}"
