@@ -1,6 +1,7 @@
 import base64
 import os
 
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.files.base import ContentFile
 from django.db import transaction
@@ -98,8 +99,8 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
             "name": name,
             "version": version,
             "relative_path": f"{name}/-/{attachment_name}",
-            "upload": f"/pulp/api/v3/uploads/{str(upload.pk)}/",
-            "repository": f"/pulp/api/v3/repositories/npm/npm/{str(repository.pk)}/"
+            "upload": f"{settings.V3_API_ROOT}uploads/{str(upload.pk)}/",
+            "repository": f"{settings.V3_API_ROOT}repositories/npm/npm/{str(repository.pk)}/"
         }
 
         # validate data
