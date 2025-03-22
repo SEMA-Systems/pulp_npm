@@ -1,4 +1,8 @@
+import base64
+import os
+
 from django.contrib.auth import authenticate
+from django.core.files.base import ContentFile
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
 
@@ -7,8 +11,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from pulpcore.app.models import Upload
 from pulpcore.plugin import viewsets as core
 from pulpcore.plugin.actions import ModifyRepositoryActionMixin
+from pulpcore.plugin.models import ContentArtifact
 from pulpcore.plugin.serializers import (
     AsyncOperationResponseSerializer,
     RepositorySyncURLSerializer,
@@ -16,6 +22,23 @@ from pulpcore.plugin.serializers import (
 from pulpcore.plugin.tasking import dispatch
 
 from . import models, serializers, tasks
+
+
+def get_auth_token(request):
+    """
+    Retrieve npm authentication token.
+    """
+
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None, Response({"error": "Missing or invalid Authorization header"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    token_str = auth_header.split(' ')[1]
+    try:
+        token = models.AuthToken.objects.get(token=token_str)
+        return token, None
+    except models.AuthToken.DoesNotExist:
+        return None, Response({"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class PackageFilter(core.ContentFilter):
@@ -43,60 +66,79 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
     queryset = models.Package.objects.all()
     serializer_class = serializers.PackageSerializer
     filterset_class = PackageFilter
+    authentication_classes = []
+    permission_classes = []
 
     @transaction.atomic
-    def create(self, request):
+    def create(self, request, reponame=None, packagename=None, *args, **kwargs):
         """
-        Perform bookkeeping when saving Content.
-
-        "Artifacts" need to be popped off and saved independently, as they are not actually part
-        of the Content model.
+        Handle npm package upload.
         """
-        raise NotImplementedError("FIXME")
-        # This requires some choice. Depending on the properties of your content type - whether it
-        # can have zero, one, or many artifacts associated with it, and whether any properties of
-        # the artifact bleed into the content type (such as the digest), you may want to make
-        # those changes here.
 
-        serializer = self.get_serializer(data=request.data)
+        # check authorization
+        token, error = get_auth_token(request)
+        if error:
+            return error
+
+        # extract request data
+        name = request.data['name']
+        version = request.data['dist-tags']['latest']
+        repository = models.NpmRepository.objects.get(name=reponame)
+        attachment_name, attachment = next(iter(request.data.get('_attachments', {}).items()))
+        binary_data = base64.b64decode(attachment['data'])
+
+        # save upload
+        upload = Upload.objects.create(size=len(binary_data))
+        chunk = ContentFile(binary_data)
+        upload.append(chunk, offset=0)
+        upload.save()
+
+        # prepare data for validation
+        data = {
+            "name": name,
+            "version": version,
+            "relative_path": f"{name}/-/{attachment_name}",
+            "upload": f"/pulp/api/v3/uploads/{str(upload.pk)}/",
+            "repository": f"/pulp/api/v3/repositories/npm/npm/{str(repository.pk)}/"
+        }
+
+        # validate data
+        serializer = serializers.PackageSerializer(data=data)
+        # TODO fix when a better solution has been found
+        # change to pulp tempdir to work around incorrect path settings in the validator
+        os.chdir("/var/lib/pulp/tmp")
         serializer.is_valid(raise_exception=True)
 
-        # A single artifact per content, serializer subclasses SingleArtifactContentSerializer
-        # ======================================
-        # _artifact = serializer.validated_data.pop("_artifact")
-        # # you can save model fields directly, e.g. .save(digest=_artifact.sha256)
-        # content = serializer.save()
-        #
-        # if content.pk:
-        #     ContentArtifact.objects.create(
-        #         artifact=artifact,
-        #         content=content,
-        #         relative_path= ??
-        #     )
-        # =======================================
+        # find existing package
+        package = models.Package.objects.filter(name=name, version=version).first()
 
-        # Many artifacts per content, serializer subclasses MultipleArtifactContentSerializer
-        # =======================================
-        # _artifacts = serializer.validated_data.pop("_artifacts")
-        # content = serializer.save()
-        #
-        # if content.pk:
-        #   # _artifacts is a dictionary of {"relative_path": "artifact"}
-        #   for relative_path, artifact in _artifacts.items():
-        #       ContentArtifact.objects.create(
-        #           artifact=artifact,
-        #           content=content,
-        #           relative_path=relative_path
-        #       )
-        # ========================================
+        if not package:
+            # create and save package
+            package = models.Package(
+                name=name,
+                version=version,
+            )
+            package.save()
 
-        # No artifacts, serializer subclasses NoArtifactContentSerialier
-        # ========================================
-        # content = serializer.save()
-        # ========================================
+            # save artifact
+            artifact = serializer.validated_data["artifact"]
+            artifact.save()
 
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            # create and save content artifact
+            ContentArtifact.objects.create(
+                content=package,
+                artifact=artifact,
+                relative_path=package.relative_path,
+            )
+
+        # add package to repository
+        result = dispatch(
+            tasks.publish,
+            kwargs={"repository_pk": repository.pk, "package_pk": package.pk},
+            exclusive_resources=[repository, package],
+        )
+
+        return core.OperationPostponedResponse(result, request)
 
 
 class NpmRemoteViewSet(core.RemoteViewSet):
