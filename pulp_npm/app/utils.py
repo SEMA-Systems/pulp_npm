@@ -1,6 +1,5 @@
 import re
 
-
 def urlpath_sanitize(*args):
     """
     Join an arbitrary number of strings into a /-separated path.

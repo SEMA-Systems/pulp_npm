@@ -7,30 +7,9 @@ from pulpcore.plugin import serializers as core_serializers
 from . import models
 
 
-# FIXME: SingleArtifactContentSerializer might not be the right choice for you.
-# If your content type has no artifacts per content unit, use "NoArtifactContentSerializer".
-# If your content type has many artifacts per content unit, use "MultipleArtifactContentSerializer"
-# If you want create content through upload, use "SingleArtifactContentUploadSerializer"
-# If you change this, make sure to do so on "fields" below, also.
-# Make sure your choice here matches up with the create() method of your viewset.
 class PackageSerializer(core_serializers.SingleArtifactContentUploadSerializer):
     """
-    A Serializer for Package.
-
-    Add serializers for the new fields defined in Package and
-    add those fields to the Meta class keeping fields from the parent class as well.
-
-    For example::
-
-    field1 = serializers.TextField()
-    field2 = serializers.IntegerField()
-    field3 = serializers.CharField()
-
-    class Meta:
-        fields = core_serializers.SingleArtifactContentSerializer.Meta.fields + (
-            'field1', 'field2', 'field3'
-        )
-        model = models.Package
+    Serializer for NPM Packages.
     """
 
     name = serializers.CharField()
