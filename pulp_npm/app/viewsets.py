@@ -1,9 +1,11 @@
+from django.contrib.auth import authenticate
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
 
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from pulpcore.plugin import viewsets as core
 from pulpcore.plugin.actions import ModifyRepositoryActionMixin
@@ -166,3 +168,38 @@ class NpmDistributionViewSet(core.DistributionViewSet):
     endpoint_name = "npm"
     queryset = models.NpmDistribution.objects.all()
     serializer_class = serializers.NpmDistributionSerializer
+
+
+class NpmUserLoginView(APIView):
+    """
+    ViewSet for NPM login.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def put(self, request, reponame, username, *args, **kwargs):
+        """
+        Handle npm user login.
+        """
+
+        serializer = serializers.LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            password = serializer.validated_data['password']
+            user = authenticate(username=username, password=password)
+
+            if user is not None:
+                # Associate login with repository
+                try:
+                    repository = models.NpmRepository.objects.get(name=reponame)
+
+                    # Generate login token
+                    token, created = models.AuthToken.objects.get_or_create(user=user)
+                    if not created:
+                        token.save()
+
+                    return Response({"token": token.token}, status=status.HTTP_200_OK)
+                except models.NpmRepository.DoesNotExist:
+                    return Response({"error": "Repository not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
