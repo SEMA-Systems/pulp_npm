@@ -13,6 +13,5 @@ def publish(repository_pk, package_pk):
     with repository.new_version() as new_version:
         new_version.add_content(Package.objects.filter(pk=package_pk))
 
-    # switch distribution to new version
-    distribution.repository_version = new_version
+    # save distribution
     distribution.save()
