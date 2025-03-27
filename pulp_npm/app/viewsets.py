@@ -1,5 +1,5 @@
 import base64
-import os
+import uuid
 
 from django.conf import settings
 from django.contrib.auth import authenticate
@@ -12,10 +12,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from pulpcore.app.models import Upload
 from pulpcore.plugin import viewsets as core
 from pulpcore.plugin.actions import ModifyRepositoryActionMixin
-from pulpcore.plugin.models import ContentArtifact
+from pulpcore.plugin.models import Artifact, ContentArtifact, PulpTemporaryFile
 from pulpcore.plugin.serializers import (
     AsyncOperationResponseSerializer,
     RepositorySyncURLSerializer,
@@ -87,43 +86,38 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
         repository = models.NpmRepository.objects.get(name=reponame)
         attachment_name, attachment = next(iter(request.data.get('_attachments', {}).items()))
         binary_data = base64.b64decode(attachment['data'])
+        file = ContentFile(binary_data, name=f"{uuid.uuid4().hex[:8]}-{name}")
 
-        # save upload
-        upload = Upload.objects.create(size=len(binary_data))
-        chunk = ContentFile(binary_data)
-        upload.append(chunk, offset=0)
-        upload.save()
+        # create artifact
+        temp_file = PulpTemporaryFile(file=file)
+        artifact = Artifact.from_pulp_temporary_file(temp_file)
 
         # prepare data for validation
         data = {
             "name": name,
             "version": version,
             "relative_path": f"{name}/-/{attachment_name}",
-            "upload": f"{settings.V3_API_ROOT}uploads/{str(upload.pk)}/",
+            "artifact": str(artifact.pk),
             "repository": f"{settings.V3_API_ROOT}repositories/npm/npm/{str(repository.pk)}/"
         }
 
         # validate data
         serializer = serializers.PackageSerializer(data=data)
-        # TODO fix when a better solution has been found
-        # change to pulp tempdir to work around incorrect path settings in the validator
-        os.chdir("/var/lib/pulp/tmp")
-        serializer.is_valid(raise_exception=True)
+        serializer.is_valid(raise_exception=False)
 
         # find existing package
         package = models.Package.objects.filter(name=name, version=version).first()
 
         if not package:
+            # save artifact
+            artifact.save()
+
             # create and save package
             package = models.Package(
                 name=name,
                 version=version,
             )
             package.save()
-
-            # save artifact
-            artifact = serializer.validated_data["artifact"]
-            artifact.save()
 
             # create and save content artifact
             ContentArtifact.objects.create(
