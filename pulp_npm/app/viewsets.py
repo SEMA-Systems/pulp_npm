@@ -97,8 +97,7 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
             "name": name,
             "version": version,
             "relative_path": f"{name}/-/{attachment_name}",
-            "artifact": str(artifact.pk),
-            "repository": f"{settings.V3_API_ROOT}repositories/npm/npm/{str(repository.pk)}/"
+            "artifact": str(artifact.pk)
         }
 
         # validate data
