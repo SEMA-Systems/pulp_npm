@@ -88,28 +88,26 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
         binary_data = base64.b64decode(attachment['data'])
         file = ContentFile(binary_data, name=f"{uuid.uuid4().hex[:8]}-{name}")
 
-        # create artifact
-        temp_file = PulpTemporaryFile(file=file)
-        artifact = Artifact.from_pulp_temporary_file(temp_file)
-
-        # prepare data for validation
-        data = {
-            "name": name,
-            "version": version,
-            "relative_path": f"{name}/-/{attachment_name}",
-            "artifact": str(artifact.pk)
-        }
-
-        # validate data
-        serializer = serializers.PackageSerializer(data=data)
-        serializer.is_valid(raise_exception=False)
-
         # find existing package
         package = models.Package.objects.filter(name=name, version=version).first()
 
         if not package:
-            # save artifact
+            # create and save artifact
+            temp_file = PulpTemporaryFile(file=file)
+            artifact = Artifact.from_pulp_temporary_file(temp_file)
             artifact.save()
+
+            # prepare data for validation
+            data = {
+                "name": name,
+                "version": version,
+                "relative_path": f"{name}/-/{attachment_name}",
+                "artifact": str(artifact.pk)
+            }
+
+            # validate data
+            serializer = serializers.PackageSerializer(data=data)
+            serializer.is_valid(raise_exception=False)
 
             # create and save package
             package = models.Package(
