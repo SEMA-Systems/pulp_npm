@@ -142,7 +142,7 @@ class NpmDistribution(Distribution):
             )
 
         for package in packages:
-            tarball_url = f"{prefix_url}{package.relative_path}"
+            tarball_url = f"{prefix_url}{package.relative_path.split('/')[-1]}"
 
             version = {
                 package.version: {
