@@ -7,7 +7,7 @@ build-backend = 'setuptools.build_meta'
 
 [project]
 name = "pulp-npm"
-version = "0.3.0.dev"
+version = "0.4.0.dev"
 description = "pulp-npm plugin for the Pulp Project"
 readme = "README.md"
 authors = [
@@ -38,6 +38,9 @@ Changelog = "https://pulpproject.org/pulp_npm/changes/"
 
 [project.entry-points."pulpcore.plugin"]
 pulp_npm = "pulp_npm:default_app_config"
+
+[project.entry-points."pytest11"]
+pulp_npm = "pulp_npm.pytest_plugin"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -85,7 +88,7 @@ exclude = '''
 [tool.bumpversion]
 # This section is managed by the plugin template. Do not edit manually.
 
-current_version = "0.3.0.dev"
+current_version = "0.4.0.dev"
 commit = false
 tag = false
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<alpha>0a)?(?P<patch>\\d+)(\\.(?P<release>[a-z]+))?"
