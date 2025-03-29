@@ -102,12 +102,12 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
                 "name": name,
                 "version": version,
                 "relative_path": f"{name}/-/{attachment_name}",
-                "artifact": str(artifact.pk)
+                "artifact": f"{settings.V3_API_ROOT}artifacts/{str(artifact.pk)}/"
             }
 
             # validate data
             serializer = serializers.PackageSerializer(data=data)
-            serializer.is_valid(raise_exception=False)
+            serializer.is_valid(raise_exception=True)
 
             # create and save package
             package = models.Package(
