@@ -34,6 +34,7 @@ class Package(Content):
 
     name = models.CharField(max_length=214)
     version = models.CharField(max_length=16)
+    dependencies = models.JSONField(blank=True, default=list)
     _pulp_domain = models.ForeignKey("core.Domain", default=get_domain_pk, on_delete=models.PROTECT)
 
     @property
@@ -125,6 +126,7 @@ class NpmDistribution(Distribution):
 
         data["name"] = name
         data["versions"] = {}
+        data["dependencies"] = {}
         versions = []
 
         if settings.DOMAIN_ENABLED:
@@ -152,6 +154,7 @@ class NpmDistribution(Distribution):
                 package.version: {
                     "_id": f"{package.name}@{package.version}",
                     "dist": {"tarball": tarball_url},
+                    "dependencies": package.dependencies,
                 }
             }
             versions.append(package.version)
