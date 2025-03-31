@@ -15,12 +15,14 @@ class PackageSerializer(core_serializers.SingleArtifactContentUploadSerializer):
     name = serializers.CharField()
     version = serializers.CharField()
     relative_path = serializers.CharField()
+    dependencies = serializers.JSONField()
 
     class Meta:
         fields = core_serializers.SingleArtifactContentUploadSerializer.Meta.fields + (
             "name",
             "version",
             "relative_path",
+            "dependencies",
         )
         model = models.Package
 

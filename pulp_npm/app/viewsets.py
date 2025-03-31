@@ -83,6 +83,8 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
         # extract request data
         name = request.data['name']
         version = request.data['dist-tags']['latest']
+        dependencies = request.data.get("versions", {}).get(version, {}).get("dependencies", {})
+        print(dependencies)
         repository = models.NpmRepository.objects.get(name=reponame)
         attachment_name, attachment = next(iter(request.data.get('_attachments', {}).items()))
         binary_data = base64.b64decode(attachment['data'])
@@ -101,6 +103,7 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
             data = {
                 "name": name,
                 "version": version,
+                "dependencies": dependencies,
                 "relative_path": f"{name}/-/{attachment_name}",
                 "artifact": f"{settings.V3_API_ROOT}artifacts/{str(artifact.pk)}/"
             }
@@ -111,8 +114,9 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
 
             # create and save package
             package = models.Package(
-                name=name,
-                version=version,
+                name=serializer.validated_data['name'],
+                version=serializer.validated_data['version'],
+                dependencies=serializer.validated_data['dependencies']
             )
             package.save()
 
