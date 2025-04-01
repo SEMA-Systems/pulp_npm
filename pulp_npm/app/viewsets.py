@@ -84,7 +84,6 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
         name = request.data['name']
         version = request.data['dist-tags']['latest']
         dependencies = request.data.get("versions", {}).get(version, {}).get("dependencies", {})
-        print(dependencies)
         repository = models.NpmRepository.objects.get(name=reponame)
         attachment_name, attachment = next(iter(request.data.get('_attachments', {}).items()))
         binary_data = base64.b64decode(attachment['data'])
