@@ -83,38 +83,39 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
         # extract request data
         name = request.data['name']
         version = request.data['dist-tags']['latest']
+        dependencies = request.data.get("versions", {}).get(version, {}).get("dependencies", {})
         repository = models.NpmRepository.objects.get(name=reponame)
         attachment_name, attachment = next(iter(request.data.get('_attachments', {}).items()))
         binary_data = base64.b64decode(attachment['data'])
         file = ContentFile(binary_data, name=f"{uuid.uuid4().hex[:8]}-{name}")
 
-        # create artifact
-        temp_file = PulpTemporaryFile(file=file)
-        artifact = Artifact.from_pulp_temporary_file(temp_file)
-
-        # prepare data for validation
-        data = {
-            "name": name,
-            "version": version,
-            "relative_path": f"{name}/-/{attachment_name}",
-            "artifact": str(artifact.pk)
-        }
-
-        # validate data
-        serializer = serializers.PackageSerializer(data=data)
-        serializer.is_valid(raise_exception=False)
-
         # find existing package
         package = models.Package.objects.filter(name=name, version=version).first()
 
         if not package:
-            # save artifact
+            # create and save artifact
+            temp_file = PulpTemporaryFile(file=file)
+            artifact = Artifact.from_pulp_temporary_file(temp_file)
             artifact.save()
+
+            # prepare data for validation
+            data = {
+                "name": name,
+                "version": version,
+                "dependencies": dependencies,
+                "relative_path": f"{name}/-/{attachment_name}",
+                "artifact": f"{settings.V3_API_ROOT}artifacts/{str(artifact.pk)}/"
+            }
+
+            # validate data
+            serializer = serializers.PackageSerializer(data=data)
+            serializer.is_valid(raise_exception=True)
 
             # create and save package
             package = models.Package(
-                name=name,
-                version=version,
+                name=serializer.validated_data['name'],
+                version=serializer.validated_data['version'],
+                dependencies=serializer.validated_data['dependencies']
             )
             package.save()
 
@@ -122,7 +123,7 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
             ContentArtifact.objects.create(
                 content=package,
                 artifact=artifact,
-                relative_path=package.relative_path,
+                relative_path=package.relative_path.split('/')[-1],
             )
 
         # add package to repository
