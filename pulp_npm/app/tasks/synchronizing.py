@@ -73,33 +73,55 @@ class NpmFirstStage(Stage):
         """
         downloader = self.remote.get_downloader(url=self.remote.url)
         result = await downloader.run()
-        data = [self.get_json_data(result.path)]
-        dependencies = data[0].get("dependencies")
-        to_download = []
-        if dependencies:
-            to_download.extend(dependencies.items())
-            downloaded = []
-            while to_download:
-                next_batch = []
-                for name, version in to_download:
-                    new_url = self.remote.url.replace(data[0]["name"], name)
-                    new_url = new_url.replace(data[0]["version"], version.replace("^", "").replace("~", ""))
-                    downloader = self.remote.get_downloader(url=new_url)
+        data = self.get_json_data(result.path)
+
+        if "versions" in data:
+            data = list(data["versions"].values())
+        else:
+            data = [data]
+
+        to_process = []
+        to_process.extend(data)
+        pkgs = []
+
+        while to_process:
+            pkg = to_process.pop()
+
+            name = pkg["name"]
+            version = pkg["version"]
+
+            # add package to pkgs if it does not yet exist
+            pkg_list_name_version = {(pkg['name'], pkg['version']) for pkg in pkgs}
+            if (name, version) not in pkg_list_name_version:
+                pkgs.append(pkg)
+
+            if "dependencies" in pkg:
+                for dependency in pkg["dependencies"]:
+
+                    # skip dependency if it already exists in pkgs
+                    pkg_list_name = {name for name, _ in pkg_list_name_version}
+                    if dependency in pkg_list_name:
+                        continue
+
+                    next_url = self.remote.url.replace(pkg["name"], dependency).replace(pkg.get("version", ""), "")
+                    downloader = self.remote.get_downloader(url=next_url)
                     result = await downloader.run()
-                    new_data = self.get_json_data(result.path)
-                    data.append(new_data)
-                    next_batch.extend(new_data.get("dependencies", {}).items())
-                    downloaded.append((name, version))
+                    dep_data = self.get_json_data(result.path)
 
-                to_download.extend(next_batch)
+                    if "versions" in dep_data:
+                        deps = list(dep_data["versions"].values())
+                    else:
+                        deps = [dep_data]
 
-                for dependency in downloaded:
-                    if dependency in to_download:
-                        to_download.remove(dependency)
+                    # add dependency to process list if it does not yet exist
+                    to_process_list_names = {(pkg['name']) for pkg in to_process}
+                    if dependency not in to_process_list_names:
+                        to_process.extend(deps)
 
-        for pkg in data:
-            package = Package(name=pkg["name"], version=pkg["version"])
-            artifact = Artifact()  # make Artifact in memory-only
+        for pkg in pkgs:
+            dependencies = pkg.get("dependencies", {})
+            package = Package(name=pkg["name"], version=pkg["version"], dependencies=dependencies)
+            artifact = Artifact()
             url = pkg["dist"]["tarball"]
             da = DeclarativeArtifact(
                 artifact=artifact,
