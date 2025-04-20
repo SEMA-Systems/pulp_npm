@@ -123,7 +123,7 @@ class PackageViewSet(core.SingleArtifactContentUploadViewSet):
             ContentArtifact.objects.create(
                 content=package,
                 artifact=artifact,
-                relative_path=package.relative_path.split('/')[-1],
+                relative_path=f"{package.name}/-/{package.relative_path.split('/')[-1]}",
             )
 
         # add package to repository
