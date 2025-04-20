@@ -1,6 +1,7 @@
 from gettext import gettext as _
 import json
 import logging
+import requests
 
 from pulpcore.plugin.models import Artifact, Remote, Repository
 from pulpcore.plugin.stages import (
@@ -122,15 +123,18 @@ class NpmFirstStage(Stage):
             package = Package(name=pkg["name"], version=pkg["version"], dependencies=dependencies)
             artifact = Artifact()
             url = pkg["dist"]["tarball"]
-            da = DeclarativeArtifact(
-                artifact=artifact,
-                url=url,
-                relative_path=f"{pkg['name']}/-/{url.split('/')[-1]}",
-                remote=self.remote,
-                deferred_download=self.deferred_download,
-            )
-            dc = DeclarativeContent(content=package, d_artifacts=[da])
-            await self.put(dc)
+
+            response = requests.head(url, timeout=5)
+            if response.status_code == 200:
+                da = DeclarativeArtifact(
+                    artifact=artifact,
+                    url=url,
+                    relative_path=f"{pkg['name']}/-/{url.split('/')[-1]}",
+                    remote=self.remote,
+                    deferred_download=self.deferred_download,
+                )
+                dc = DeclarativeContent(content=package, d_artifacts=[da])
+                await self.put(dc)
 
     def get_json_data(self, path):
         """
