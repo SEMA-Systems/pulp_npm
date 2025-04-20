@@ -17,7 +17,7 @@ from pulp_npm.app.models import Package, NpmRemote
 log = logging.getLogger(__name__)
 
 
-def synchronize(remote_pk, repository_pk, mirror=False):
+def synchronize(remote_pk, repository_pk, mirror=False, sync_deps=False):
     """
     Sync content from the remote repository.
 
@@ -27,6 +27,7 @@ def synchronize(remote_pk, repository_pk, mirror=False):
         remote_pk (str): The remote PK.
         repository_pk (str): The repository PK.
         mirror (bool): True for mirror mode, False for additive.
+        sync_deps (bool): If True, dependencies are also synced. Defaults to False.
 
     Raises:
         ValueError: If the remote does not specify a URL to sync
@@ -40,7 +41,7 @@ def synchronize(remote_pk, repository_pk, mirror=False):
 
     # Interpret policy to download Artifacts or not
     deferred_download = remote.policy != Remote.IMMEDIATE
-    first_stage = NpmFirstStage(remote, deferred_download)
+    first_stage = NpmFirstStage(remote, deferred_download, sync_deps=sync_deps)
     return DeclarativeVersion(first_stage, repository, mirror=mirror).create()
 
 
@@ -49,7 +50,7 @@ class NpmFirstStage(Stage):
     The first stage of a pulp_npm sync pipeline.
     """
 
-    def __init__(self, remote, deferred_download):
+    def __init__(self, remote, deferred_download, sync_deps=False):
         """
         The first stage of a pulp_npm sync pipeline.
 
@@ -57,11 +58,13 @@ class NpmFirstStage(Stage):
             remote (FileRemote): The remote data to be used when syncing
             deferred_download (bool): if True the downloading will not happen now. If False, it will
                 happen immediately.
+            sync_deps (bool): If True, dependencies are also synced. Defaults to False.
 
         """
         super().__init__()
         self.remote = remote
         self.deferred_download = deferred_download
+        self.sync_deps = sync_deps
 
     async def run(self):
         """
@@ -95,7 +98,7 @@ class NpmFirstStage(Stage):
             if (name, version) not in pkg_list_name_version:
                 pkgs.append(pkg)
 
-            if "dependencies" in pkg:
+            if self.sync_deps and "dependencies" in pkg:
                 for dependency in pkg["dependencies"]:
 
                     # skip dependency if it already exists in pkgs

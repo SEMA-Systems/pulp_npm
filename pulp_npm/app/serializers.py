@@ -77,6 +77,22 @@ class NpmRepositorySerializer(core_serializers.RepositorySerializer):
         model = models.NpmRepository
 
 
+class NpmRepositorySyncSerializer(core_serializers.RepositorySyncURLSerializer):
+    """
+    A Serializer for NpmRepositorySync.
+
+    Extends RepositorySyncURLSerializer to add the 'sync_deps' field for controlling dependency sync.
+    Default is False.
+
+    Example::
+
+        class Meta:
+            validators = core_serializers.RepositorySyncURLSerializer.Meta.validators + [myCustomValidator, ...]
+    """
+
+    sync_deps = serializers.BooleanField(default=False, required=False)
+
+
 class NpmDistributionSerializer(core_serializers.DistributionSerializer):
     """
     Serializer for NPM Distributions.
