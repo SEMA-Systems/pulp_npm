@@ -75,14 +75,13 @@ class NpmFirstStage(Stage):
         result = await downloader.run()
         data = self.get_json_data(result.path)
 
-        if "versions" in data:
-            data = list(data["versions"].values())
-        else:
-            data = [data]
-
         to_process = []
-        to_process.extend(data)
         pkgs = []
+
+        if "versions" in data:
+            to_process.extend(list(data["versions"].values()))
+        else:
+            to_process.extend([data])
 
         while to_process:
             pkg = to_process.pop()
@@ -103,7 +102,7 @@ class NpmFirstStage(Stage):
                     if dependency in pkg_list_name:
                         continue
 
-                    next_url = self.remote.url.replace(pkg["name"], dependency).replace(pkg.get("version", ""), "")
+                    next_url = self.remote.url.replace(data["name"], dependency).replace(data.get("version", ""), "")
                     downloader = self.remote.get_downloader(url=next_url)
                     result = await downloader.run()
                     dep_data = self.get_json_data(result.path)
