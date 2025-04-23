@@ -19,7 +19,7 @@ Use the remote object to kick off a synchronize task by specifying the repositor
 sync with. You are telling pulp to fetch content from the remote and add to the repository:
 
 ```bash
-curl -X POST $BASE_ADDR/$REPO_HREF/sync/ -d '{"remote": "$REMOTE_HREF"}' -H 'Content-Type: application/json'
+curl -X POST $BASE_ADDR/$REPO_HREF/sync/ -d '{"remote": "$REMOTE_HREF", "sync_deps": [true|false]}' -H 'Content-Type: application/json'
 ```
 
 ## Create distribution

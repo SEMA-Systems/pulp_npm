@@ -17,7 +17,6 @@ from pulpcore.plugin.actions import ModifyRepositoryActionMixin
 from pulpcore.plugin.models import Artifact, ContentArtifact, PulpTemporaryFile
 from pulpcore.plugin.serializers import (
     AsyncOperationResponseSerializer,
-    RepositorySyncURLSerializer,
 )
 from pulpcore.plugin.tasking import dispatch
 
@@ -168,21 +167,26 @@ class NpmRepositoryViewSet(core.RepositoryViewSet, ModifyRepositoryActionMixin):
         summary="Sync from remote",
         responses={202: AsyncOperationResponseSerializer},
     )
-    @action(detail=True, methods=["post"], serializer_class=RepositorySyncURLSerializer)
+    @action(detail=True, methods=["post"], serializer_class=serializers.NpmRepositorySyncSerializer)
     def sync(self, request, pk):
         """
         Dispatches a sync task.
         """
         repository = self.get_object()
-        serializer = RepositorySyncURLSerializer(
+        serializer = serializers.NpmRepositorySyncSerializer(
             data=request.data, context={"request": request, "repository_pk": pk}
         )
         serializer.is_valid(raise_exception=True)
         remote = serializer.validated_data.get("remote", repository.remote)
+        sync_deps = serializer.validated_data.get("sync_deps", False)
 
         result = dispatch(
             tasks.synchronize,
-            kwargs={"remote_pk": remote.pk, "repository_pk": repository.pk},
+            kwargs={
+                "remote_pk": remote.pk,
+                "repository_pk": repository.pk,
+                "sync_deps": sync_deps,
+            },
             exclusive_resources=[repository],
             shared_resources=[remote],
         )
