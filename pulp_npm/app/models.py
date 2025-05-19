@@ -152,6 +152,8 @@ class NpmDistribution(Distribution):
 
             version = {
                 package.version: {
+                    "name": f"{package.name}",
+                    "version": f"{package.version}",
                     "_id": f"{package.name}@{package.version}",
                     "dist": {"tarball": tarball_url},
                     "dependencies": package.dependencies,
